@@ -10,7 +10,7 @@ dependencies:
   - cudatoolkit
   - pytorch-lightning
   - pytorch-scatter
-  - pytorch-geometric
+  - pyg
   - pytorch-cluster
   - scipy
   - yaml
