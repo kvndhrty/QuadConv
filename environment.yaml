@@ -1,14 +1,13 @@
 name: QuadConv
 channels:
   - pytorch
+  - nvidia
   - pyg
-  - conda-forge
   - defaults
 dependencies:
   - python
   - pytorch
-  - cudatoolkit
-  - pytorch-lightning
+  - pytorch-cuda
   - pytorch-scatter
   - pyg
   - pytorch-cluster
@@ -19,3 +18,4 @@ dependencies:
   - pip:
     - gif
     - torch_tb_profiler
+    - pytorch-lightning
