@@ -2,7 +2,7 @@
 
 ### [arXiv](https://arxiv.org/abs/2211.05151)
 
-[Kevin Doherty*](), [Cooper Simpson*](https://rs-coop.github.io/), [Stephen Becker](), [Alireza Doostan]()
+Kevin Doherty*, [Cooper Simpson*](https://rs-coop.github.io/), Stephen Becker, Alireza Doostan
 
 Submitted to [Computer Methods in Applied Mechanics and Engineering](https://www.sciencedirect.com/journal/computer-methods-in-applied-mechanics-and-engineering)
 
