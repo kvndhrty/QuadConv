@@ -1,4 +1,4 @@
-# QuadConv: Quadrature-Based Convolutions with Applications to Non-Uniform Data Compression
+# QuadConv: Quadrature-Based Convolutions with Applications to Non-Uniform PDE Data Compression
 
 ### [arXiv](https://arxiv.org/abs/2211.05151)
 
