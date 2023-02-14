@@ -30,9 +30,9 @@ Our work can be cited using the entry in `CITATION`.
 ### Environment Setup
 The file `environment.yaml` contains a list of dependencies, and it can be used to generate an anaconda environment with the following command:
 ```console
-conda create -file environment.yaml
+conda create --file=environment.yaml
 ```
-which will install all necessary packages in the conda environment `QuadConv`.
+which will install all necessary packages in the conda environment `QuadConv`. It might be faster in some cases to just install the packages individually. I would recommend installing the PyTorch, Nvidia, and PYG packages together, followed by the default packages, and then the pip packages.
 
 For local development, it is easiest to install `core` as a pip package in editable mode using the following command from within the top level of this repository:
 ```console
