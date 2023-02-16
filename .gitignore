@@ -22,12 +22,3 @@ ENV/
 env.bak/
 venv.bak/
 conda/
-
-# Data
-data/flow_mesh/*
-data/ignition_grid/*
-data/ignition_mesh/*
-data/ignition_uniform_mesh/*
-
-# OPOSSUM
-core/torch_quadconv/utils/libopossum.so
