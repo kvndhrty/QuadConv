@@ -23,8 +23,7 @@ Our work can be cited using the entry in `CITATION`.
   - `template.yaml`: Detailed experiment template
 - `job_scripts`: HPC job submission scripts
 - `lightning_logs`: Experiment logs
-- `notebooks`: Various Jupyter Notebooks
-- `py_scripts`: Various python scripts
+- `notebooks`: Various Jupyter Notebooks for recreating paper figures
 - `main.py`: Model training and testing script
 
 ### Environment Setup
@@ -41,7 +40,7 @@ pip install -e .
 The main experiment script can still be run without doing this, but the notebooks will be non-functional.
 
 ### Data Acquisition
-To obtain the datasets used in our paper...
+Our datasets are included in this repository using [Git LFS](https://git-lfs.com/).
 
 ### Running Experiments
 Use the following command to run an experiment:
