@@ -72,35 +72,33 @@ class DataModule(pl.LightningDataModule):
     '''
     Transform data by selecting channels, tiling, reshaping, normalizing.
     '''
-    def transform(self, data):
+    def transform(self, features):
         #extract channels
         if len(self.channels) != 0:
-            data = data[...,self.channels]
+            features = features[...,self.channels]
 
-        self.data_shape = data.shape[1:]
+        self.data_shape = features.shape[1:]
 
         #normalize
         if self.normalize:
-            dim = tuple([i for i in range(self.spatial_dim+1)])
+            mean = torch.mean(features, dim=(0,1), keepdim=True)
+            std_dev = torch.sqrt(torch.var(features, dim=(0,1), keepdim=True))
 
-            mean = torch.mean(data, dim=dim, keepdim=True)
-            std_dev = torch.sqrt(torch.var(data, dim=dim, keepdim=True))
+            features = (features-mean)/std_dev
 
-            data = (data-mean)/std_dev
-
-            data = data/(torch.max(torch.abs(data)))
+            features = features/(torch.max(torch.abs(features)))
 
         #channels first
-        data = torch.movedim(data, -1, 1)
+        features = torch.movedim(features, -1, 1)
 
         #tile
         for i in range(2, self.spatial_dim+1):
-            data = data.unfold(i, self.size, self.stride)
+            features = features.unfold(i, self.size, self.stride)
 
         #reshape
-        data = data.reshape(tuple([-1, 1]+[self.size for i in range(self.spatial_dim)]))
+        features = features.reshape(tuple([-1, 1]+[self.size for i in range(self.spatial_dim)]))
 
-        return data
+        return features
 
     '''
     Setup dataset.
