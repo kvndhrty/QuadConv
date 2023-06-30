@@ -241,9 +241,9 @@ class Encoder(nn.Module):
 
         #self.cnn.append(init_layer)
 
-        for i in range(1, stages):
+        for i in range(stages):
             self.cnn.append(GCNBlock(spatial_dim = spatial_dim,
-                                        **arg_stack[i],
+                                        **arg_stack[i+1],
                                         activation1 = forward_activation,
                                         activation2 = forward_activation,
                                         **kwargs
@@ -310,7 +310,7 @@ class Decoder(nn.Module):
 
         self.cnn = nn.Sequential()
 
-        for i in range(stages-1):
+        for i in range(stages):
             self.cnn.append(GCNBlock(spatial_dim = spatial_dim,
                                         **arg_stack[i],
                                         activation1 = forward_activation,
@@ -383,14 +383,14 @@ class GCNBlock(nn.Module):
         #build layers, normalizations, and activations
         self.conv1 = GCNConv(   in_channels = in_channels,
                                 out_channels = in_channels,
-                                bias = False,
+                                #bias = False,
                                 **kwargs)
         self.batchnorm1 = nn.InstanceNorm1d(in_channels)
         self.activation1 = activation1()
 
         self.conv2 = GCNConv(   in_channels = in_channels,
                                 out_channels = out_channels,
-                                bias = False,
+                                #bias = False,
                                 **kwargs)
         self.batchnorm2 = nn.InstanceNorm1d(out_channels)
         self.activation2 = activation2()
@@ -414,7 +414,9 @@ class GCNBlock(nn.Module):
 
         dim_pack = [sq_shape] * self.spatial_dim
 
-        output = self.resample(x2.reshape(x2.shape[0], x2.shape[1], *dim_pack)).reshape(x2.shape[0], x2.shape[1], -1)
+        grided_x = x2.reshape(x2.shape[0], *dim_pack, x2.shape[2]).transpose(1, 3)
+
+        output = self.resample(grided_x).transpose(1, 3).reshape(x2.shape[0], -1, x2.shape[2])
 
         return output
 
@@ -427,7 +429,9 @@ class GCNBlock(nn.Module):
 
         dim_pack = [sq_shape] * self.spatial_dim
 
-        x = self.resample(data.reshape(data.shape[0], data.shape[1], *dim_pack)).reshape(data.shape[0], data.shape[1], -1)
+        grided_x = data.reshape(data.shape[0], *dim_pack, data.shape[2]).transpose(1, 3)
+
+        x = self.resample(grided_x).transpose(1, 3).reshape(data.shape[0], -1, data.shape[2])
 
         x1 = self.conv1(x, adj)
         x1 = self.activation1(self.batchnorm1(x1))

@@ -24,8 +24,8 @@ model:
   learning_rate: 0.01 #float
 
   conv_params:
-    in_channels: [1, 4] #list[int]
-    out_channels: [4, 4] #list[int]
+    in_channels: [1, 16] #list[int]
+    out_channels: [16, 16] #list[int]
     bias: [False] #list[bool]
 
 #PT LightningDataModule arguments

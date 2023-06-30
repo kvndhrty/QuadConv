@@ -173,7 +173,7 @@ def load_checkpoint(path_to_checkpoint, data_path):
 
     checkpoint = list(model_checkpoint_path.rglob('epoch=*.ckpt'))
 
-    checkpoint_dict = torch.load(checkpoint[0])
+    checkpoint_dict = torch.load(checkpoint[0], map_location=torch.device('cpu'))
 
     state_dict = checkpoint_dict['state_dict']
 
