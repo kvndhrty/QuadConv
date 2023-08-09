@@ -4,7 +4,7 @@
 #Documentation: https://pytorch-lightning.readthedocs.io/en/stable/common/trainer.html
 #Comment out options you aren't using
 train:
-  accelerator: "cpu" #str, e.g. "gpu"
+  accelerator: "auto" #str, e.g. "gpu"
   devices: "auto" #int
   strategy: "auto" #str
   enable_checkpointing: True #bool
@@ -30,7 +30,7 @@ model:
 
 #PT LightningDataModule arguments
 data:
-  data_dir: "data/ignition_grid" #str
+  data_dir: "data/upside_down_ignition_grid" #str
   spatial_dim: 2 #int
   num_points: 2500 #int, mesh only
   batch_size: 8 #int

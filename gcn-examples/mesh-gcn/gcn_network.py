@@ -22,6 +22,11 @@ from pathlib import Path
 
 import numpy as np
 
+from core.mesh_data import DataModule
+import yaml
+from pathlib import Path
+
+
 
 class Model(pl.LightningModule):
 
@@ -238,10 +243,12 @@ class Encoder(nn.Module):
 
         input_shape = (1, 2189, 1)
 
+        self.data_path = Path(r'/Users/kdoh/Library/CloudStorage/OneDrive-UCB-O365/Documents/Research/QuadConv/data/ignition_mesh')
+
         #build network
         self.cnn = nn.Sequential()
 
-        self.init_layer = GCNConv(**arg_stack[0])
+        self.init_layer = GCNConv(**arg_stack[0]).to(device='cpu')
 
         for i in range(stages):
             self.cnn.append(GCNBlock(spatial_dim = spatial_dim,
@@ -251,9 +258,9 @@ class Encoder(nn.Module):
                                         **kwargs
                                         ))
             
-        self.init_adj = make_grid_adj(int(np.sqrt(input_shape[1])))
+        self.init_adj = load_adj(self.data_path)
 
-        self.conv_out_shape = self.cnn(self.init_layer(torch.zeros(input_shape), self.init_adj)).shape
+        self.conv_out_shape = self.cnn(self.init_layer(torch.zeros(input_shape).to(device='cpu'), self.init_adj)).shape
 
         self.flat = nn.Flatten(start_dim=1, end_dim=-1)
 
@@ -297,6 +304,8 @@ class Decoder(nn.Module):
         #block arguments
         arg_stack = package_args(stages+1, swap(conv_params), mirror=True)
 
+        self.data_path = Path(r'/Users/kdoh/Library/CloudStorage/OneDrive-UCB-O365/Documents/Research/QuadConv/data/ignition_mesh')
+
         #build network
         self.unflat = nn.Unflatten(1, input_shape[1:])
 
@@ -321,9 +330,9 @@ class Decoder(nn.Module):
                                         **kwargs
                                         ))
 
-        self.init_layer = GCNConv(**arg_stack[-1])
+        self.init_layer = GCNConv(**arg_stack[-1]).to(device='cpu')
 
-        self.init_adj = None
+        self.init_adj = load_adj(self.data_path)
     '''
     Forward
     '''
@@ -333,7 +342,7 @@ class Decoder(nn.Module):
         x = self.cnn(x)
 
         if self.init_adj is None:
-            self.init_adj = make_grid_adj(int(np.sqrt(x.shape[1])))
+            self.init_adj = load_adj(self.data_path)
 
         output = self.init_layer(x, self.init_adj)
 
@@ -376,11 +385,10 @@ class GCNBlock(nn.Module):
 
         Pool = layer_lookup[spatial_dim]
 
-        data_path = Path('/Users/kdoh/Documents/GitHub/QuadConv/data/ignition_mesh')
+        self.data_path = Path(r'/Users/kdoh/Library/CloudStorage/OneDrive-UCB-O365/Documents/Research/QuadConv/data/ignition_mesh')
 
         #look for points file
-        points_file = data_path.joinpath('points.npy')
-        self.points = torch.from_numpy(np.float32(np.load(points_file)))
+        self.points = load_points(self.data_path)
 
         #pooling or upsamling
         if self.adjoint:
@@ -392,14 +400,14 @@ class GCNBlock(nn.Module):
                 nodes.append(torch.linspace(0, 1, 50))
 
             nodes = torch.meshgrid(*nodes, indexing='xy')
-            self.domain = torch.dstack(nodes).view(-1, self.spatial_dim)
+            self.domain = torch.dstack(nodes).view(-1, self.spatial_dim).to(device='cpu')
 
-            self.range = self.points
+            self.range = self.points.to(device='cpu')
 
         else:
             self.resample = Pool(2)
 
-            self.domain = self.points
+            self.domain = self.points.to(device='cpu')
 
             #Assume the domain is the unit square
             nodes = [] 
@@ -407,20 +415,20 @@ class GCNBlock(nn.Module):
                 nodes.append(torch.linspace(0, 1, 50))
 
             nodes = torch.meshgrid(*nodes, indexing='xy')
-            self.range = torch.dstack(nodes).view(-1, self.spatial_dim)
+            self.range = torch.dstack(nodes).view(-1, self.spatial_dim).to(device='cpu')
 
         #build layers, normalizations, and activations
         self.conv1 = GCNConv(   in_channels = in_channels,
                                 out_channels = in_channels,
                                 #bias = False,
-                                **kwargs)
+                                **kwargs).to(device='cpu')
         self.batchnorm1 = nn.InstanceNorm1d(in_channels)
         self.activation1 = activation1()
 
         self.conv2 = GCNConv(   in_channels = in_channels,
                                 out_channels = out_channels,
                                 #bias = False,
-                                **kwargs)
+                                **kwargs).to(device='cpu')
         self.batchnorm2 = nn.InstanceNorm1d(out_channels)
         self.activation2 = activation2()
 
@@ -486,7 +494,7 @@ class GCNBlock(nn.Module):
         data = input
 
         if not self.cached:
-            adj = make_grid_adj(int(np.sqrt(data.shape[1])))
+            adj = load_adj(self.data_path)
             self.adj = adj
         elif self.cached:
             adj = self.adj
@@ -518,3 +526,70 @@ def make_grid_adj(k):
     edge_index, pos = grid(k,k)
 
     return edge_index
+
+
+def load_adj(data_path):
+
+    adj_file = data_path.joinpath('adj.npy')
+
+    adj = torch.from_numpy(np.load(adj_file)).to(device='cpu')
+
+    return adj
+
+def load_points(data_path):
+
+    points_file = data_path.joinpath('points.npy')
+
+    points = torch.from_numpy(np.float32(np.load(points_file))).to(device='cpu')
+
+    return points
+
+
+
+
+def load_checkpoint(path_to_checkpoint, data_path):
+
+    #### Change the entries here to analyze a new model / dataset
+    model_checkpoint_path = Path(path_to_checkpoint)
+    data_path = Path(data_path)
+    ###################
+
+    model_yml = list(model_checkpoint_path.glob('config.yaml'))
+
+    with model_yml[0].open() as file:
+        config = yaml.safe_load(file)
+
+    #extract args
+    #trainer_args = config['train']
+    model_args = config['model']
+    data_args = config['data']
+    data_args['data_dir'] = data_path
+    #misc_args = config['misc']
+
+    checkpoint = list(model_checkpoint_path.rglob('epoch=*.ckpt'))
+
+    checkpoint_dict = torch.load(checkpoint[0], map_location=torch.device('cpu'))
+
+    state_dict = checkpoint_dict['state_dict']
+
+    #setup datamodule
+    datamodule = DataModule(**data_args)
+    datamodule.setup(stage='analyze')
+    dataset, points = datamodule.analyze_data()
+
+    #build model
+    model = Model(**model_args, data_info = datamodule.get_data_info())
+
+    del_list = []
+    for key in state_dict:
+        if 'eval_indices' in key:
+            del_list.append(key)
+
+    for key in del_list:
+        del state_dict[key]
+
+    model.load_state_dict(state_dict, strict=False)
+    model.eval()
+    model.to('cpu')
+
+    return model, dataset, points

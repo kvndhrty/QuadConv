@@ -4,15 +4,15 @@
 #Documentation: https://pytorch-lightning.readthedocs.io/en/stable/common/trainer.html
 #Comment out options you aren't using
 train:
-  accelerator: "cpu" #str, e.g. "gpu"
+  accelerator: "auto" #str, e.g. "gpu"
   devices: 'auto' #int
-  strategy: "ddp" #str
+  strategy: "auto" #str
   enable_checkpointing: True #bool
   check_val_every_n_epoch: 1 #int
   default_root_dir: "./lightning_logs" #str
   logger: True #bool
   enable_progress_bar: True #bool
-  max_epochs: 1000 #int
+  max_epochs: 10000 #int
 
 #Model arguments
 model:
@@ -24,8 +24,8 @@ model:
   learning_rate: 0.01 #float
 
   conv_params:
-    in_channels: [1, 4] #list[int]
-    out_channels: [4, 4] #list[int]
+    in_channels: [1, 16] #list[int]
+    out_channels: [16, 16] #list[int]
     bias: [False] #list[bool]
 
 #PT LightningDataModule arguments

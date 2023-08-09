@@ -17,6 +17,8 @@ from core.utils import package_args, swap
 from core.torch_quadconv.utils.sobolev import SobolevLoss
 
 import numpy as np
+from core.mesh_data import DataModule
+
 
 
 class Model(pl.LightningModule):
@@ -237,9 +239,9 @@ class Encoder(nn.Module):
         #build network
         self.cnn = nn.Sequential()
 
-        self.init_layer = GCNConv(**arg_stack[0])
+        self.init_layer = GCNConv(**arg_stack[0]).to(device='cpu')
 
-        #self.cnn.append(init_layer)
+        self.square_shape = int(np.sqrt(input_shape[1]))
 
         for i in range(stages):
             self.cnn.append(GCNBlock(spatial_dim = spatial_dim,
@@ -249,9 +251,9 @@ class Encoder(nn.Module):
                                         **kwargs
                                         ))
             
-        self.init_adj = make_grid_adj(int(np.sqrt(input_shape[1])))
+        self.init_adj, _ = grid(self.square_shape, self.square_shape, device='cpu')
 
-        self.conv_out_shape = self.cnn(self.init_layer(torch.zeros(input_shape), self.init_adj)).shape
+        self.conv_out_shape = self.cnn(self.init_layer(torch.zeros(input_shape, device='cpu'), self.init_adj)).shape
 
         self.flat = nn.Flatten(start_dim=1, end_dim=-1)
 
@@ -319,9 +321,11 @@ class Decoder(nn.Module):
                                         **kwargs
                                         ))
 
-        self.init_layer = GCNConv(**arg_stack[-1])
+        self.init_layer = GCNConv(**arg_stack[-1]).to(device='cpu')
 
         self.init_adj = None
+
+        self.square_shape = int(np.sqrt(input_shape[1]))
     '''
     Forward
     '''
@@ -331,7 +335,7 @@ class Decoder(nn.Module):
         x = self.cnn(x)
 
         if self.init_adj is None:
-            self.init_adj = make_grid_adj(int(np.sqrt(x.shape[1])))
+            self.init_adj, _ = grid(self.square_shape, self.square_shape, device = x.device)
 
         output = self.init_layer(x, self.init_adj)
 
@@ -362,6 +366,7 @@ class GCNBlock(nn.Module):
 
         self.cached = False
         self.adj = None #adjacency matrix
+        self.square_shape = None
 
 
         #set pool type
@@ -384,14 +389,14 @@ class GCNBlock(nn.Module):
         self.conv1 = GCNConv(   in_channels = in_channels,
                                 out_channels = in_channels,
                                 #bias = False,
-                                **kwargs)
+                                **kwargs).to(device='cpu')
         self.batchnorm1 = nn.InstanceNorm1d(in_channels)
         self.activation1 = activation1()
 
         self.conv2 = GCNConv(   in_channels = in_channels,
                                 out_channels = out_channels,
                                 #bias = False,
-                                **kwargs)
+                                **kwargs).to(device='cpu')
         self.batchnorm2 = nn.InstanceNorm1d(out_channels)
         self.activation2 = activation2()
 
@@ -449,7 +454,8 @@ class GCNBlock(nn.Module):
         data = input
 
         if not self.cached:
-            adj = make_grid_adj(int(np.sqrt(data.shape[1])))
+            self.square_shape = int(np.sqrt(data.shape[1]))
+            adj, _ = grid(self.square_shape, self.square_shape, device=input.device)
             self.adj = adj
         elif self.cached:
             adj = self.adj
@@ -462,37 +468,52 @@ class GCNBlock(nn.Module):
         return data
 
 
-from scipy import sparse
-from scipy.sparse import vstack
+from pathlib import Path
+import yaml
 
+def load_checkpoint(path_to_checkpoint, data_path):
 
-def make_grid_row(i,k):
+    #### Change the entries here to analyze a new model / dataset
+    model_checkpoint_path = Path(path_to_checkpoint)
+    data_path = Path(data_path)
+    ###################
 
-    col = np.array([i-k,i-1,i,i+1,i+k],dtype=np.int8)
-    col = np.delete(col,np.where((col<0)|(col>k**2 -1)))
+    model_yml = list(model_checkpoint_path.glob('config.yaml'))
 
-    data = np.ones_like(col)
-    row = np.zeros_like(col)
+    with model_yml[0].open() as file:
+        config = yaml.safe_load(file)
 
-    this_row = sparse.coo_matrix((data,(row,col)),shape=(1,k**2),dtype=np.int8)
+    #extract args
+    #trainer_args = config['train']
+    model_args = config['model']
+    data_args = config['data']
+    data_args['data_dir'] = data_path
+    #misc_args = config['misc']
 
-    return this_row
+    checkpoint = list(model_checkpoint_path.rglob('epoch=*.ckpt'))
 
-def make_grid_adj(k):
+    checkpoint_dict = torch.load(checkpoint[0], map_location=torch.device('cpu'))
 
-    '''
-        A = []
+    state_dict = checkpoint_dict['state_dict']
 
-        for i in range(k**2):
+    #setup datamodule
+    datamodule = DataModule(**data_args)
+    datamodule.setup(stage='analyze')
+    dataset, points = datamodule.analyze_data()
 
-            temp = make_grid_row(i,k)
+    #build model
+    model = Model(**model_args, data_info = datamodule.get_data_info())
 
-            if i == 0:
-                A = temp
-            else:
-                A = vstack([A,temp])
-    '''
+    del_list = []
+    for key in state_dict:
+        if 'eval_indices' in key:
+            del_list.append(key)
 
-    edge_index, pos = grid(k,k)
+    for key in del_list:
+        del state_dict[key]
 
-    return edge_index
+    model.load_state_dict(state_dict, strict=False)
+    model.eval()
+    model.to('cpu')
+
+    return model, dataset, points

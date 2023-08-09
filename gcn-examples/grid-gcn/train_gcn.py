@@ -82,7 +82,7 @@ if __name__ == "__main__":
         os.environ['PYTORCH_ENABLE_MPS_FALLBACK'] = '1'
 
     #load YAML config
-    experiment = Path('./gcn-examples/grid-gcn/gcn_pool.yaml')
+    experiment = Path('./gcn-examples/grid-gcn/flipped_gcn_pool.yaml')
 
     #open YAML file
     with experiment.open() as file:
