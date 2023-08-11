@@ -6,7 +6,6 @@ import torch_geometric
 from torch import nn
 
 from torch_geometric.nn import GCNConv
-from torch_geometric.utils import grid
 
 import pytorch_lightning as pl
 
@@ -239,7 +238,7 @@ class Encoder(nn.Module):
         #build network
         self.cnn = nn.Sequential()
 
-        self.init_layer = GCNConv(**arg_stack[0]).to(device='cpu')
+        self.init_layer = GCNConv(**arg_stack[0]).to(device='cuda')
 
         self.square_shape = int(np.sqrt(input_shape[1]))
 
@@ -251,9 +250,9 @@ class Encoder(nn.Module):
                                         **kwargs
                                         ))
             
-        self.init_adj, _ = grid(self.square_shape, self.square_shape, device='cpu')
+        self.init_adj, _ = custom_grid(self.square_shape, self.square_shape, device='cuda')
 
-        self.conv_out_shape = self.cnn(self.init_layer(torch.zeros(input_shape, device='cpu'), self.init_adj)).shape
+        self.conv_out_shape = self.cnn(self.init_layer(torch.zeros(input_shape, device='cuda'), self.init_adj)).shape
 
         self.flat = nn.Flatten(start_dim=1, end_dim=-1)
 
@@ -321,7 +320,7 @@ class Decoder(nn.Module):
                                         **kwargs
                                         ))
 
-        self.init_layer = GCNConv(**arg_stack[-1]).to(device='cpu')
+        self.init_layer = GCNConv(**arg_stack[-1]).to(device='cuda')
 
         self.init_adj = None
 
@@ -335,7 +334,7 @@ class Decoder(nn.Module):
         x = self.cnn(x)
 
         if self.init_adj is None:
-            self.init_adj, _ = grid(self.square_shape, self.square_shape, device = x.device)
+            self.init_adj, _ = custom_grid(self.square_shape, self.square_shape, device = x.device)
 
         output = self.init_layer(x, self.init_adj)
 
@@ -389,14 +388,14 @@ class GCNBlock(nn.Module):
         self.conv1 = GCNConv(   in_channels = in_channels,
                                 out_channels = in_channels,
                                 #bias = False,
-                                **kwargs).to(device='cpu')
+                                **kwargs).to(device='cuda')
         self.batchnorm1 = nn.InstanceNorm1d(in_channels)
         self.activation1 = activation1()
 
         self.conv2 = GCNConv(   in_channels = in_channels,
                                 out_channels = out_channels,
                                 #bias = False,
-                                **kwargs).to(device='cpu')
+                                **kwargs).to(device='cuda')
         self.batchnorm2 = nn.InstanceNorm1d(out_channels)
         self.activation2 = activation2()
 
@@ -455,7 +454,7 @@ class GCNBlock(nn.Module):
 
         if not self.cached:
             self.square_shape = int(np.sqrt(data.shape[1]))
-            adj, _ = grid(self.square_shape, self.square_shape, device=input.device)
+            adj, _ = custom_grid(self.square_shape, self.square_shape, device=input.device)
             self.adj = adj
         elif self.cached:
             adj = self.adj
@@ -517,3 +516,34 @@ def load_checkpoint(path_to_checkpoint, data_path):
     model.to('cpu')
 
     return model, dataset, points
+
+
+
+def custom_grid(height=5, width=5, self_edges=True):
+
+    row = []
+    col = []
+
+    oob = height*width
+
+    for this_node in range(height*width):
+
+        if (width + this_node < oob):
+            row.append(this_node)
+            col.append(width + this_node)
+
+        if (1 + (this_node % height) < height):
+            row.append(this_node)
+            col.append(1 + this_node)
+
+    #symmetry and self edges
+
+    direction1 = torch.vstack((torch.tensor(row),torch.tensor(col)))
+    direction2 = torch.vstack((torch.tensor(col),torch.tensor(row)))
+
+    if self_edges:
+        node_list = torch.tensor(range(0,height*width))
+        loops = torch.vstack((node_list, node_list))
+
+
+    return torch.hstack((direction1, direction2, loops))
