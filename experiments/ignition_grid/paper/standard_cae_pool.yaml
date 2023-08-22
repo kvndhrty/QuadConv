@@ -1,8 +1,8 @@
 #PT Lightning trainer arguments
 train:
-  accelerator: "gpu" #str e.g. "gpu"
-  devices: -1
-  strategy: "ddp" #str
+  accelerator: "auto" #str e.g. "gpu"
+  devices: "auto"
+  strategy: "auto" #str
   # precision: #str
   # num_nodes: #int
   # auto_scale_batch_size: #bool

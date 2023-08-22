@@ -9,7 +9,7 @@ from pytorch_lightning.callbacks import ModelCheckpoint, EarlyStopping
 
 from core.utils import Logger, make_gif
 
-from gcn_network import Model
+from spline_network import Model
 from core.mesh_data import DataModule
 
 '''
@@ -82,7 +82,7 @@ if __name__ == "__main__":
         os.environ['PYTORCH_ENABLE_MPS_FALLBACK'] = '1'
 
     #load YAML config
-    experiment = Path('./gcn-examples/grid-gcn/gcn_pool.yaml')
+    experiment = Path('./spline-cnn-example/spline_pool.yaml')
 
     #open YAML file
     with experiment.open() as file:

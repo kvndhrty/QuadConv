@@ -5,7 +5,7 @@ import torch
 import torch_geometric
 from torch import nn
 
-from torch_geometric.nn import GCNConv
+from torch_geometric.nn.conv import SplineConv
 
 import pytorch_lightning as pl
 
@@ -85,7 +85,7 @@ class Model(pl.LightningModule):
     '''
     def encode(self, x):
 
-        x = x.transpose(1,2)
+        x = x.transpose(1,2).squeeze(0)
 
         return self.encoder(x)
 
@@ -101,7 +101,7 @@ class Model(pl.LightningModule):
 
         x = self.output_activation(self.decoder(z))
 
-        x = x.transpose(1,2)
+        x = x.transpose(0,1).unsqueeze(0)
         return x
 
     '''
@@ -216,7 +216,7 @@ class Model(pl.LightningModule):
 
 ################################################################################
 
-class Encoder(nn.Module):
+class Encoder(pl.LightningModule):
 
     def __init__(self,*,
             spatial_dim,
@@ -233,28 +233,28 @@ class Encoder(nn.Module):
         #block arguments
         arg_stack = package_args(stages+1, conv_params)
 
-        input_shape = (1, 2500, 1)
+        input_shape = (2500,  1)
 
         #build network
         self.cnn = nn.Sequential()
 
-        self.init_layer = GCNConv(**arg_stack[0]).to(device='cpu')
+        self.init_layer = SplineConv(**arg_stack[0])
 
         self.square_shape = 50
 
         for i in range(stages):
-            self.cnn.append(GCNBlock(spatial_dim = spatial_dim,
+            self.cnn.append(SplineBlock(spatial_dim = spatial_dim,
                                         **arg_stack[i+1],
                                         activation1 = forward_activation,
                                         activation2 = forward_activation,
                                         **kwargs
                                         ))
             
-        self.init_adj = custom_grid(self.square_shape, self.square_shape, device='cpu')
+        self.init_adj, self.edge_attr = custom_grid(self.square_shape, self.square_shape)
 
-        self.conv_out_shape = self.cnn(self.init_layer(torch.zeros(input_shape, device='cpu'), self.init_adj)).shape
+        self.conv_out_shape = self.cnn(self.init_layer(x = torch.zeros(input_shape), edge_index = self.init_adj, edge_attr = self.edge_attr)).shape
 
-        self.flat = nn.Flatten(start_dim=1, end_dim=-1)
+        self.flat = nn.Flatten(start_dim=0, end_dim=-1)
 
         self.linear = nn.Sequential()
 
@@ -264,13 +264,13 @@ class Encoder(nn.Module):
         self.linear.append(latent_activation())
 
         #dry run
-        self.out_shape = self.linear(self.flat(torch.zeros(self.conv_out_shape)))
+        self.out_shape = self.linear(self.flat(torch.rand(self.conv_out_shape)))
 
     '''
     Forward
     '''
     def forward(self, x):
-        x = self.init_layer(x, self.init_adj)
+        x = self.init_layer(x, self.init_adj, self.edge_attr)
         x = self.cnn(x)
         x = self.flat(x)
         output = self.linear(x)
@@ -297,7 +297,7 @@ class Decoder(nn.Module):
         arg_stack = package_args(stages+1, swap(conv_params), mirror=True)
 
         #build network
-        self.unflat = nn.Unflatten(1, input_shape[1:])
+        self.unflat = nn.Unflatten(0, input_shape[0:])
 
         self.linear = nn.Sequential()
 
@@ -312,7 +312,7 @@ class Decoder(nn.Module):
         self.cnn = nn.Sequential()
 
         for i in range(stages):
-            self.cnn.append(GCNBlock(spatial_dim = spatial_dim,
+            self.cnn.append(SplineBlock(spatial_dim = spatial_dim,
                                         **arg_stack[i],
                                         activation1 = forward_activation,
                                         activation2 = forward_activation,
@@ -320,7 +320,7 @@ class Decoder(nn.Module):
                                         **kwargs
                                         ))
 
-        self.init_layer = GCNConv(**arg_stack[-1]).to(device='cpu')
+        self.init_layer = SplineConv(**arg_stack[-1])
 
         self.init_adj = None
 
@@ -334,15 +334,15 @@ class Decoder(nn.Module):
         x = self.cnn(x)
 
         if self.init_adj is None:
-            self.init_adj = custom_grid(self.square_shape, self.square_shape, device = x.device)
+            self.init_adj, self.edge_attr = custom_grid(self.square_shape, self.square_shape, device = x.device)
 
-        output = self.init_layer(x, self.init_adj)
+        output = self.init_layer(x, self.init_adj, self.edge_attr)
 
         return output
 
 ################################################################################
 
-class GCNBlock(nn.Module):
+class SplineBlock(pl.LightningModule):
 
     def __init__(self,*,
             spatial_dim,
@@ -366,6 +366,7 @@ class GCNBlock(nn.Module):
         self.cached = False
         self.adj = None #adjacency matrix
         self.square_shape = None
+        self.edge_attr = None
 
 
         #set pool type
@@ -385,17 +386,17 @@ class GCNBlock(nn.Module):
             self.resample = Pool(2)
 
         #build layers, normalizations, and activations
-        self.conv1 = GCNConv(   in_channels = in_channels,
+        self.conv1 = SplineConv(   in_channels = in_channels,
                                 out_channels = in_channels,
                                 #bias = False,
-                                **kwargs).to(device='cpu')
+                                **kwargs)
         self.batchnorm1 = nn.InstanceNorm1d(in_channels)
         self.activation1 = activation1()
 
-        self.conv2 = GCNConv(   in_channels = in_channels,
+        self.conv2 = SplineConv(   in_channels = in_channels,
                                 out_channels = out_channels,
                                 #bias = False,
-                                **kwargs).to(device='cpu')
+                                **kwargs)
         self.batchnorm2 = nn.InstanceNorm1d(out_channels)
         self.activation2 = activation2()
 
@@ -405,20 +406,20 @@ class GCNBlock(nn.Module):
     '''
     Forward mode
     '''
-    def forward_op(self, adj, data):
+    def forward_op(self, adj, pts, data):
         x = data
 
-        x1 = self.conv1(x, adj)
+        x1 = self.conv1(x, adj, pts)
         x1 = self.activation1(self.batchnorm1(x1))
 
-        x2 = self.conv2(x1, adj)
+        x2 = self.conv2(x1, adj, pts)
         x2 = self.activation2(self.batchnorm2(x2) + x)
 
-        sq_shape = int(np.sqrt(x2.shape[1]))
+        sq_shape = int(np.sqrt(x2.shape[0]))
 
         dim_pack = [sq_shape] * self.spatial_dim
 
-        grided_x = torch.permute(x2, (0,2,1)).reshape(x2.shape[0], x2.shape[2], *dim_pack)
+        grided_x = torch.permute(x2, (1,0)).reshape(x2.shape[1], *dim_pack)
 
         #grided_x = x2.reshape(x2.shape[0], *dim_pack, x2.shape[2])
 
@@ -426,20 +427,20 @@ class GCNBlock(nn.Module):
 
         #output = torch.permute(self.resample(reshape_grided_x), (0, 2, 3, 1)).reshape(x2.shape[0], -1, x2.shape[2])
 
-        output = torch.permute(self.resample(grided_x).reshape(x2.shape[0], x2.shape[2], -1), (0, 2, 1))
+        output = torch.permute(self.resample(grided_x.unsqueeze(0)).squeeze(0).reshape( x2.shape[1], -1), (1, 0))
 
         return output
 
     '''
     Adjoint mode
     '''
-    def adjoint_op(self, adj, data):
+    def adjoint_op(self, adj, pts, data):
 
-        sq_shape = int(np.sqrt(data.shape[1]))
+        sq_shape = int(np.sqrt(data.shape[0]))
 
         dim_pack = [sq_shape] * self.spatial_dim
 
-        grided_x = torch.permute(data, (0,2,1)).reshape(data.shape[0], *dim_pack, data.shape[2])
+        grided_x = torch.permute(data, (1,0)).reshape(*dim_pack, data.shape[1])
 
         #grided_x = data.reshape(data.shape[0], *dim_pack, data.shape[2])
 
@@ -447,12 +448,12 @@ class GCNBlock(nn.Module):
 
         #x = torch.permute(self.resample(grided_x), (0, 2, 3, 1)).reshape(data.shape[0], -1, data.shape[2])
 
-        x = torch.permute(self.resample(grided_x).reshape(data.shape[0], data.shape[2], -1), (0, 2, 1))
+        x = torch.permute(self.resample(grided_x.unsqueeze(0)).squeeze(0).reshape(data.shape[1], -1), (1, 0))
 
-        x1 = self.conv1(x, adj)
+        x1 = self.conv1(x, adj, pts)
         x1 = self.activation1(self.batchnorm1(x1))
 
-        x2 = self.conv2(x1, adj)
+        x2 = self.conv2(x1, adj, pts)
         x2 = self.activation2(self.batchnorm2(x2) + x)
 
         return x2
@@ -466,15 +467,18 @@ class GCNBlock(nn.Module):
 
         if not self.cached:
             self.square_shape = 50
-            adj = custom_grid(self.square_shape, self.square_shape, device=input.device)
+            adj, edge_attr = custom_grid(self.square_shape, self.square_shape, device=input.device)
             self.adj = adj
+            self.edge_attr = edge_attr
+
         elif self.cached:
             adj = self.adj
+            edge_attr = self.edge_attr
 
         if self.adjoint:
-            data = self.adjoint_op(adj, data)
+            data = self.adjoint_op(adj, edge_attr, data)
         else:
-            data = self.forward_op(adj, data)
+            data = self.forward_op(adj, edge_attr, data)
 
         return data
 
@@ -536,6 +540,8 @@ def custom_grid(height=5, width=5, self_edges=False, device = None):
     row = []
     col = []
 
+    edge_attr = None
+
     oob = height*width
 
     for this_node in range(height*width):
@@ -544,14 +550,24 @@ def custom_grid(height=5, width=5, self_edges=False, device = None):
             row.append(this_node)
             col.append(width + this_node)
 
+            if edge_attr is None:
+                edge_attr = torch.tensor([0.5, 0.0])
+            else:
+                edge_attr = torch.vstack((edge_attr, torch.tensor([0.5, 0.0])))
+
         if (1 + (this_node % height) < height):
             row.append(this_node)
             col.append(1 + this_node)
+            edge_attr = torch.vstack((edge_attr, torch.tensor([0.0, 0.5])))
 
     #symmetry and self edges
 
     direction1 = torch.vstack((torch.tensor(row),torch.tensor(col)))
     direction2 = torch.vstack((torch.tensor(col),torch.tensor(row)))
+
+    edge_attr1 = edge_attr
+    edge_attr2 = -1 * edge_attr
+    out_attr = torch.vstack((edge_attr1, edge_attr2))
 
     stack = (direction1, direction2)
 
@@ -561,4 +577,17 @@ def custom_grid(height=5, width=5, self_edges=False, device = None):
 
         stack.append(loops)
 
-    return torch.hstack(stack)
+    return torch.hstack(stack), out_attr
+
+
+
+def make_grid_points():
+
+    x = np.linspace(0,1,50)
+    y = np.linspace(0,1,50)
+
+    grid = np.meshgrid(*(x,y))
+
+    t_grid = torch.tensor(np.hstack(grid)).reshape(2,-1)
+
+    return t_grid.transpose(0,1)

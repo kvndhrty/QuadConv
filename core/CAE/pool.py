@@ -54,7 +54,7 @@ class Encoder(nn.Module):
 
         self.cnn.append(init_layer)
 
-        for i in range(1, stages):
+        for i in range(1, stages+1):
             self.cnn.append(PoolBlock(spatial_dim = spatial_dim,
                                         **arg_stack[i],
                                         activation1 = forward_activation,
@@ -129,7 +129,7 @@ class Decoder(nn.Module):
 
         self.cnn = nn.Sequential()
 
-        for i in range(stages-1):
+        for i in range(stages):
             self.cnn.append(PoolBlock(spatial_dim = spatial_dim,
                                         **arg_stack[i],
                                         activation1 = forward_activation,
