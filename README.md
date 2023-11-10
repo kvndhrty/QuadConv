@@ -4,7 +4,7 @@
 
 Kevin Doherty*, [Cooper Simpson*](https://rs-coop.github.io/), Stephen Becker, Alireza Doostan
 
-Submitted to [Computer Methods in Applied Mechanics and Engineering](https://www.sciencedirect.com/journal/computer-methods-in-applied-mechanics-and-engineering)
+Accepted to [Journal of Computational Physics](https://www.sciencedirect.com/journal/journal-of-computational-physics)
 
 ## Abstract
 We present a new convolution layer for deep learning architectures which we call QuadConv -- an approximation to continuous convolution via quadrature. Our operator is developed explicitly for use on non-uniform, mesh-based data, and accomplishes this by learning a continuous kernel that can be sampled at arbitrary locations. Moreover, the construction of our operator admits an efficient implementation which we detail and construct. In the setting of compressing data arising from partial differential equation (PDE) simulations, we show that QuadConv can match the performance of standard discrete convolutions on uniform grid data by comparing a QuadConv autoencoder (QCAE) to a standard convolutional autoencoder (CAE). Further, we show that the QCAE can maintain this accuracy even on non-uniform data.
