@@ -1,7 +1,0 @@
-@article{quadconv,
-	title = {{QuadConv: Quadrature-Based Convolutions with Applications to Non-Uniform Data Compression}},
-	author = {Doherty, Kevin and Simpson, Cooper and Becker, Stephen and Doostan, Alireza},
-	year = {2022},
-	journal = {arXiv},
-	doi = {10.48550/ARXIV.2211.05151}
-}

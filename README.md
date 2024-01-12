@@ -12,9 +12,20 @@ We present a new convolution layer for deep learning architectures which we call
 ## License & Citation
 All source code is made available under an MIT license. You can freely use and modify the code, without warranty, so long as you provide attribution to the authors. See `LICENSE` for the full text.
 
-Our work can be cited using the entry in `CITATION`.
+Our paper can be cited using the following bibtex entry:
+```bibtex
+@article{quadconv,
+	title = {{QuadConv: Quadrature-Based Convolutions with Applications to Non-Uniform PDE Data Compression}},
+	author = {Doherty, Kevin and Simpson, Cooper and Becker, Stephen and Doostan, Alireza},
+	year = {2023},
+	journal = {J. Comp. Physics, {\em to appear}},
+	doi = {10.1016/j.jcp.2023.112636}
+}
+```
 
 ## Usage
+
+Note that the QuadConv software has moved to [Pytorch-QuadConv](https://github.com/AlgorithmicDataReduction/PyTorch-QuadConv/tree/main). This repository is still independently operational in order to maintain reproducibility of our results.
 
 ### Repository Structure
 - `core`: Model architectures, data loading, core operators, and utilities.
