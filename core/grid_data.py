@@ -186,7 +186,7 @@ class DataModule(pl.LightningDataModule):
                             persistent_workers=self.persistent_workers)
 
     def analyze_data(self):
-        return self.analyze
+        return self.analyze, None
 
     def teardown(self, stage=None):
         return
