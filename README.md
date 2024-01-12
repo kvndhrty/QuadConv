@@ -25,7 +25,7 @@ Our paper can be cited using the following bibtex entry:
 
 ## Usage
 
-Note that the QuadConv software has moved to [Pytorch-QuadConv](https://github.com/AlgorithmicDataReduction/PyTorch-QuadConv/tree/main). This repository is still independently operational in order to maintain reproducibility of our results.
+Note that the QuadConv software has moved to [PyTorch-QuadConv](https://github.com/AlgorithmicDataReduction/PyTorch-QuadConv/tree/main). This repository is still independently operational in order to maintain reproducibility of our results.
 
 ### Repository Structure
 - `core`: Model architectures, data loading, core operators, and utilities.
